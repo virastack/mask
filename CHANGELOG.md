@@ -1,20 +1,13 @@
 # Changelog
 
-## [v1.0.2] - 2026-03-26
-
-- Readme updated and links fixed.
-
-## [v1.0.1] - 2026-03-26
-
-- Readme updated, new projects added to the ecosystem, and readme hero image renewed.
-
-## [v1.0.0] - 2026-03-18
+## [v1.0.0] - 2026-07-22
 
 ### Initial Release
 
-- **@virastack/input-mask**: A lightweight, zero-dependency masking library for React Hook Form is now live!
+- **@virastack/mask**: A lightweight, zero-dependency masking library for React Hook Form is now live!
 - **Architecture**: Custom masking engine built for performance and reliability.
 - **Hook**: `useViraMask` provides a simple, type-safe API for React Hook Form.
+- **React Server Components**: Added `'use client'` directive for Next.js App Router and TanStack Start compatibility.
 
 ### Features
 
