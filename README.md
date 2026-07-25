@@ -1,33 +1,28 @@
 <div align="center">
-  <img src="./public/mask.jpg" alt="Vira Stack Mask" />
+
+<img src="https://raw.githubusercontent.com/virastack/mask/main/assets/virastack-mask.png" alt="ViraStack Mask" height="120" style="max-width: 100%;" />
+
+*The lightweight standard for input formatting and state synchronization in React.*
+
+[![ViraStack Mask](https://img.shields.io/badge/ViraStack-Mask-%23615fff)](https://virastack.com/mask/)
+[![npm version](https://img.shields.io/npm/v/@virastack/mask)](https://www.npmjs.com/package/@virastack/mask)
+[![npm downloads](https://img.shields.io/npm/dt/@virastack/mask)](https://www.npmjs.com/package/@virastack/mask)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/@virastack/mask)](https://bundlephobia.com/package/@virastack/mask)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/virastack/mask/blob/main/LICENSE)
+[![@virastack](https://img.shields.io/badge/-%40virastack-black?logo=x&logoColor=white)](https://x.com/virastack)
+
 </div>
 
-<br />
+---
 
-<div align="center">
-  <a href="https://www.npmjs.com/package/@virastack/mask">
-    <img src="https://img.shields.io/npm/v/@virastack/mask" alt="npm version" />
-  </a>
-  <a href="https://www.npmjs.com/package/@virastack/mask">
-    <img src="https://img.shields.io/npm/dt/@virastack/mask" alt="npm downloads" />
-  </a>
-  <a href="https://bundlephobia.com/package/@virastack/mask">
-    <img src="https://img.shields.io/bundlephobia/minzip/@virastack/mask" alt="bundle size" />
-  </a>
-</div>
+### [Read the full documentation →](https://virastack.com/mask/)
 
-<br />
+## Why ViraStack Mask?
 
-# ViraStack Input Mask
-
-The lightweight standard for input formatting and state synchronization in React.
-
-- 🚀 **Ultra-lightweight:** Less than 5KB minified & zipped.
-- ⚛️ **React-First:** Seamless integration with React Hook Form.
-- 🛡️ **Type-Safe:** Built with TypeScript for an excellent developer experience.
-- 🧠 **Smart Presets:** Built-in masks for credit cards, phones, currency, and more.
-
-### [Read the docs →](https://virastack.com/mask/)
+- **Ultra-lightweight:** Less than 5KB minified & zipped, minimizing your bundle size.
+- **React-First:** Seamless integration with React Hook Form, eliminating state synchronization issues.
+- **Type-Safe:** Built with TypeScript for an excellent developer experience and robust autocompletion.
+- **Smart Presets:** Built-in masks for credit cards, phones, currency, and more, saving you development time.
 
 ## Quick Start
 
@@ -63,7 +58,7 @@ Discover all ViraStack tools, libraries, and boilerplates at [**virastack.com**]
 
 ## License
 
-Licensed under the <a href="https://github.com/virastack/mask/blob/main/LICENSE">MIT License</a>.
+Licensed under the [MIT License](https://github.com/virastack/mask/blob/main/LICENSE).
 
 ## Maintainer
 
