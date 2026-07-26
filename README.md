@@ -1,6 +1,12 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/virastack/mask/main/assets/virastack-mask.png" alt="ViraStack Mask" height="120" style="max-width: 100%;" />
+<a href="https://github.com/virastack/mask" target="_blank" rel="noreferrer">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/virastack/mask/main/assets/logo-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/virastack/mask/main/assets/logo-light.png">
+    <img src="https://raw.githubusercontent.com/virastack/mask/main/assets/logo-light.png" alt="ViraStack Mask" height="120" style="max-width: 100%;" />
+  </picture>
+</a>
 
 *The lightweight standard for input formatting and state synchronization in React.*
 
