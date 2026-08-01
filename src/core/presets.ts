@@ -108,12 +108,13 @@ export const PRESETS: Record<MaskPreset, MaskOptions> = {
   currency: {
     currency: {
       precision: 2,
-      decimalSeparator: ',',
-      thousandSeparator: '.',
+      // npm default: US/English grouping. Customize for TR etc. via options.
+      decimalSeparator: '.',
+      thousandSeparator: ',',
       symbol: '',
       symbolPosition: 'prefix',
     },
-    allowedChars: /[0-9]/,
+    allowedChars: /[0-9.,]/,
     inputMode: 'decimal',
     type: 'text',
   },

@@ -1,6 +1,20 @@
 import { MaskOptions } from '../../types';
 import { cleanValue } from '../../utils/string';
 
+/** Derive which characters may enter the raw buffer from mask tokens. */
+export function getDefaultAllowedChars(mask: string): RegExp | undefined {
+  const hasDigitSlot = mask.includes('9');
+  const hasLetterSlot = mask.includes('a') || mask.includes('A');
+  const hasAnySlot = mask.includes('*');
+
+  // `*` accepts any character — skip pre-filtering so applyMask can place slots.
+  if (hasAnySlot) return undefined;
+  if (hasDigitSlot && hasLetterSlot) return /[a-zA-Z0-9]/;
+  if (hasDigitSlot) return /[0-9]/;
+  if (hasLetterSlot) return /[a-zA-Z]/;
+  return /[a-zA-Z0-9]/;
+}
+
 export function applyMask(value: string, mask: string): string {
   let valueIndex = 0;
   let result = '';
@@ -43,12 +57,7 @@ export function applyMask(value: string, mask: string): string {
 }
 
 export function unmask(value: string, mask: string): string {
-  let effectiveAllowed;
-  if (mask.includes('9')) effectiveAllowed = /[0-9]/;
-  else if (mask.includes('a')) effectiveAllowed = /[a-zA-Z]/;
-  else effectiveAllowed = /[a-zA-Z0-9]/;
-  
-  return cleanValue(value, effectiveAllowed);
+  return cleanValue(value, getDefaultAllowedChars(mask));
 }
 
 export function stripMask(value: string, mask: string): string {
@@ -61,7 +70,7 @@ export function stripMask(value: string, mask: string): string {
     const maskChar = mask[i];
     const valueChar = value[valueIndex];
     
-    if (maskChar === '9' || maskChar === 'a' || maskChar === '*') {
+    if (maskChar === '9' || maskChar === 'a' || maskChar === 'A' || maskChar === '*') {
       result += valueChar;
       valueIndex++;
     } else {
@@ -83,12 +92,7 @@ export function processMask(
   const { mask, allowedChars, forbiddenChars, transform, displayPrefix } = options;
   if (!mask) throw new Error("Mask is required for processMask");
 
-  let effectiveAllowed = allowedChars;
-  if (!effectiveAllowed) {
-      if (mask.includes('9')) effectiveAllowed = /[0-9]/;
-      else if (mask.includes('a')) effectiveAllowed = /[a-zA-Z]/;
-      else effectiveAllowed = /[a-zA-Z0-9]/;
-  }
+  const effectiveAllowed = allowedChars ?? getDefaultAllowedChars(mask);
   
   let dataCharsBeforeCursor = 0;
   if (selectionStart !== null) {
@@ -118,7 +122,11 @@ export function processMask(
 
   const maskedPart = applyMask(processedRaw, mask);
   const displayValue = displayPrefix ? displayPrefix + maskedPart : maskedPart;
-  const finalRawValue = displayPrefix ? stripMask(maskedPart, mask) : stripMask(displayValue, mask);
+  // Never keep mask literals (spaces, parentheses, slashes) in form/raw state.
+  // Prefer allowedChars scrub; fall back to slot extraction for `*`-style masks.
+  const finalRawValue = effectiveAllowed
+    ? cleanValue(maskedPart, effectiveAllowed, forbiddenChars)
+    : stripMask(maskedPart, mask);
   
   let cursorPosition = 0;
   const prefixLen = displayPrefix?.length ?? 0;
@@ -127,7 +135,7 @@ export function processMask(
       let matchesFound = 0;
       for (let i = 0; i < maskedPart.length; i++) {
            const maskChar = mask[i];
-           const isDataSlot = maskChar === '9' || maskChar === 'a' || maskChar === '*';
+           const isDataSlot = maskChar === '9' || maskChar === 'a' || maskChar === 'A' || maskChar === '*';
            
            if (isDataSlot) {
                matchesFound++;

@@ -52,7 +52,7 @@ function App() {
 
   return (
     <form>
-      <input {...phone} placeholder="(555) 555 55 55" />
+      <input {...phone} placeholder="(555) 555-5555" />
     </form>
   );
 }

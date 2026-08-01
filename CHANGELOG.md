@@ -1,5 +1,25 @@
 # Changelog
 
+## [v1.1.0] - 2026-08-01
+
+### Breaking Changes
+
+- **Currency default locale**: Preset and helper defaults are now **US/English** (`1,234.56` — thousand `,`, decimal `.`). Turkish (`1.234,56` / `₺`) is an options override.
+- **Phone default mask**: Preset `phone` is now NANP-style `(999) 999-9999`. Turkey grouping `(999) 999 99 99` is a mask override on the `phone` preset.
+
+### Bug Fixes
+
+- **IME / dead-key lock**: Recover when `compositionstart` fires without `compositionend` (e.g. `^` on dead-key layouts). `onChange` trusts `nativeEvent.isComposing`, clears a stuck flag, and resets composition state on blur.
+- **Raw value pollution on blur**: `rawValue` / form state no longer pick up masked DOM values (spaces, parentheses) after blur when using `register`. Canonical raw is kept in an internal ref and re-asserted on blur.
+- **Mask raw literals**: Card/phone/etc. raw values are scrubbed with `allowedChars` so mask literals never remain in form state.
+- **Dependent CVV length**: When card type changes from Amex (4-digit CVV) to a non-Amex card, CVV `rawValue` and form state truncate to 3 digits (not only the display value).
+- **Mixed custom masks**: Masks that combine letter and digit slots (e.g. `aaa-999`) no longer strip letters via a digits-only allowlist.
+
+### Improvements
+
+- **`rawValuesRef` source of truth**: Display formatting and sibling `resolveMask` lookups prefer canonical raw over possibly masked form/DOM values.
+- **`syncDependentRaws`**: After a field updates, sibling fields with `resolveMask` (e.g. CVV) are re-processed immediately.
+
 ## [v1.0.0] - 2026-07-22
 
 ### Initial Release

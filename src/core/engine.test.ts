@@ -71,22 +71,37 @@ describe("Core Engine", () => {
   });
 
   describe("formatCurrency", () => {
-    it("should format currency with defaults", () => {
-      expect(formatCurrency("123456", {})).toBe("123.456");
+    it("should format currency with US defaults", () => {
+      expect(formatCurrency("123456", {})).toBe("123,456");
+      expect(formatCurrency("1234.56", {})).toBe("1,234.56");
     });
 
     it("should format with custom symbol", () => {
-      expect(formatCurrency("123456", { symbol: "$" })).toBe("$123.456");
+      expect(formatCurrency("123456", { symbol: "$" })).toBe("$123,456");
     });
 
-    it("should format with custom precision", () => {
-      expect(formatCurrency("123456", { precision: 3 })).toBe("123.456");
+    it("should format Turkish separators when customized", () => {
+      expect(
+        formatCurrency("1234.56", {
+          decimalSeparator: ",",
+          thousandSeparator: ".",
+        }),
+      ).toBe("1.234,56");
     });
   });
 
   describe("unformatCurrency", () => {
-    it("should unformat currency string", () => {
-      expect(unformatCurrency("1.234,56", {})).toBe("1234.56");
+    it("should unformat US currency string", () => {
+      expect(unformatCurrency("1,234.56", {})).toBe("1234.56");
+    });
+
+    it("should unformat Turkish currency string", () => {
+      expect(
+        unformatCurrency("1.234,56", {
+          decimalSeparator: ",",
+          thousandSeparator: ".",
+        }),
+      ).toBe("1234.56");
     });
   });
 
@@ -119,10 +134,70 @@ describe("Core Engine", () => {
       expect(result.value).toBe("5551234567");
     });
 
-    it("should process currency input", () => {
+    it("should keep phone raw digit-only when input is already masked", () => {
+      const result = processInput("(555) 123-4567", PRESETS.phone);
+      expect(result.displayValue).toBe("(555) 123-4567");
+      expect(result.value).toBe("5551234567");
+      expect(result.value).not.toMatch(/[\s()-]/);
+    });
+
+    it("should keep card raw digit-only (no spaces)", () => {
+      const typed = processInput("4111111111111111", PRESETS.card);
+      expect(typed.displayValue).toBe("4111 1111 1111 1111");
+      expect(typed.value).toBe("4111111111111111");
+
+      const fromDisplay = processInput("4111 1111 1111 1111", PRESETS.card);
+      expect(fromDisplay.value).toBe("4111111111111111");
+      expect(fromDisplay.value).not.toContain(" ");
+    });
+
+    it("should keep amex raw digit-only with Amex mask", () => {
+      const result = processInput("340012345678901", {
+        ...PRESETS.card,
+        mask: "9999 999999 99999",
+      });
+      expect(result.displayValue).toBe("3400 123456 78901");
+      expect(result.value).toBe("340012345678901");
+      expect(result.value).not.toContain(" ");
+    });
+
+    it("should accept letters and digits for mixed aaa-999 masks", () => {
+      const typed = processInput("a", { mask: "aaa-999", transform: "uppercase" });
+      expect(typed.displayValue).toBe("A");
+      expect(typed.value).toBe("A");
+
+      const result = processInput("abc123", { mask: "aaa-999", transform: "uppercase" });
+      expect(result.displayValue).toBe("ABC-123");
+      expect(result.value).toBe("ABC123");
+    });
+
+    it("should process currency input with US defaults", () => {
       const result = processInput("123456", PRESETS.currency);
+      expect(result.displayValue).toBe("123,456");
+      expect(result.value).toBe("123456");
+    });
+
+    it("should process currency decimals (US)", () => {
+      const result = processInput("1234.56", PRESETS.currency);
+      expect(result.displayValue).toBe("1,234.56");
+      expect(result.value).toBe("1234.56");
+    });
+
+    it("should process Turkish currency when customized", () => {
+      const tr = {
+        currency: {
+          precision: 2,
+          decimalSeparator: ",",
+          thousandSeparator: ".",
+        },
+      };
+      const result = processInput("123456", tr);
       expect(result.displayValue).toBe("123.456");
       expect(result.value).toBe("123456");
+
+      const withDecimals = processInput("1234,56", tr);
+      expect(withDecimals.displayValue).toBe("1.234,56");
+      expect(withDecimals.value).toBe("1234.56");
     });
 
     it("should process uppercase transform", () => {

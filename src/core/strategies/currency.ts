@@ -2,8 +2,8 @@ import { CurrencyOptions } from '../../types';
 
 export function formatCurrency(value: string, options: CurrencyOptions): string {
   const {
-    decimalSeparator = ',',
-    thousandSeparator = '.',
+    decimalSeparator = '.',
+    thousandSeparator = ',',
     symbol = '',
     symbolPosition = 'prefix',
   } = options;
@@ -30,7 +30,7 @@ export function formatCurrency(value: string, options: CurrencyOptions): string 
 }
 
 export function unformatCurrency(value: string, options: CurrencyOptions): string {
-   const { decimalSeparator = ',' } = options;
+   const { decimalSeparator = '.' } = options;
    const regex = new RegExp(`[^0-9${decimalSeparator}]`, 'g');
    let clean = value.replace(regex, '');
    
@@ -45,7 +45,7 @@ export function processCurrency(
   selectionStart: number | null,
   cardType?: 'visa' | 'mastercard' | 'amex' | 'troy' | 'unknown'
 ) {
-  const { decimalSeparator = ',', thousandSeparator = '.', precision = 2 } = currency;
+  const { decimalSeparator = '.', thousandSeparator = ',', precision = 2 } = currency;
   
   const isDotThousand = thousandSeparator === '.';
   

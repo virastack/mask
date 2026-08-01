@@ -9,6 +9,36 @@ import { formatCurrency } from '../core/strategies/currency';
 import { MaskField, MaskFields, MaskOptions, MaskPreset, MaskSchema, UseViraMaskProps } from '../types';
 import { mergeRefs } from '../utils/ref';
 
+function getDefaultInputMode(mask?: string): MaskField['inputMode'] {
+  if (!mask) return 'text';
+  const hasLetterSlot = mask.includes('a') || mask.includes('A') || mask.includes('*');
+  return hasLetterSlot ? 'text' : 'tel';
+}
+
+/**
+ * Normalize a form/DOM value into canonical raw.
+ * Mask literals (spaces, parens) must never remain in raw state.
+ */
+function toCanonicalRaw(value: string, options: MaskOptions): string {
+  if (!value) return '';
+  if (options.currency) {
+    // Internal raw always uses `.` as decimal; display may use locale separators.
+    // If value is already canonical raw (from setValue), keep digits + single `.`.
+    const looksLikeCanonicalRaw = /^\d+(\.\d*)?$/.test(value);
+    if (looksLikeCanonicalRaw) return value;
+    return processInput(value, options).value;
+  }
+  return processInput(value, options).value;
+}
+
+function toDisplayValue(rawValue: string, options: MaskOptions): string {
+  if (!rawValue) return '';
+  if (options.currency) {
+    return formatCurrency(rawValue, options.currency);
+  }
+  return processInput(rawValue, options).displayValue;
+}
+
 export function useViraMask<
   TFieldValues extends FieldValues,
   TSchema extends MaskSchema<TFieldValues>
@@ -18,25 +48,31 @@ export function useViraMask<
 }: UseViraMaskProps<TFieldValues, TSchema>) {
   const { setValue, getValues, register, formState: { errors } } = form;
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  /** Forces a re-render after raw ref updates (setValue alone may not). */
+  const [rawEpoch, setRawEpoch] = useState(0);
 
   const cursorRequestRef = useRef<{ name: string; position: number } | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const isComposingRef = useRef(false);
+  /** Source of truth for raw values — never read masked DOM via getValues for rawValue. */
+  const rawValuesRef = useRef<Record<string, string>>({});
 
   useLayoutEffect(() => {
-    if (cursorRequestRef.current) {
-      const { name, position } = cursorRequestRef.current;
-      const input = fieldRefs.current[name];
-      if (input) {
-        const type = input.type;
-        const supportsSelection = /text|search|url|tel|password/i.test(type);
-        
-        if (supportsSelection) {
-           input.setSelectionRange(position, position);
-        }
+    if (!cursorRequestRef.current) return;
+    // Avoid breaking active IME / dead-key composition.
+    if (isComposingRef.current) return;
+
+    const { name, position } = cursorRequestRef.current;
+    const input = fieldRefs.current[name];
+    if (input) {
+      const type = input.type;
+      const supportsSelection = /text|search|url|tel|password/i.test(type);
+
+      if (supportsSelection) {
+        input.setSelectionRange(position, position);
       }
-      cursorRequestRef.current = null;
     }
+    cursorRequestRef.current = null;
   });
 
   const getMaskOptions = useCallback((config: MaskPreset | MaskOptions): MaskOptions => {
@@ -49,44 +85,102 @@ export function useViraMask<
     return config;
   }, []);
 
+  const getSchemaValues = useCallback(() => {
+    // resolveMask (e.g. CVV) must see canonical raws, not possibly masked form/DOM values.
+    const values = { ...(getValues() as Record<string, unknown>) };
+    for (const key of Object.keys(rawValuesRef.current)) {
+      const raw = rawValuesRef.current[key];
+      if (raw !== undefined) values[key] = raw;
+    }
+    return values;
+  }, [getValues]);
+
   const getEffectiveOptions = useCallback((options: MaskOptions, value: string): MaskOptions => {
     if (options.resolveMask) {
-      const currentValues = getValues();
-      const resolvedMask = options.resolveMask(value, currentValues, schema);
+      const resolvedMask = options.resolveMask(value, getSchemaValues(), schema);
       if (resolvedMask) {
         return { ...options, mask: resolvedMask };
       }
     }
     return options;
-  }, [getValues, schema]);
+  }, [getSchemaValues, schema]);
+
+  const commitRaw = useCallback((
+    name: Path<TFieldValues>,
+    raw: string,
+    setOpts?: Parameters<typeof setValue>[2]
+  ) => {
+    rawValuesRef.current[String(name)] = raw;
+    setValue(name, raw as PathValue<TFieldValues, Path<TFieldValues>>, setOpts);
+    setRawEpoch((n) => n + 1);
+  }, [setValue]);
+
+  /** Re-apply masks that depend on siblings (CVV length follows card type). */
+  const syncDependentRaws = useCallback((exceptKey?: string) => {
+    for (const key in schema) {
+      if (exceptKey && key === exceptKey) continue;
+      const config = schema[key];
+      if (!config) continue;
+
+      const options = getMaskOptions(config);
+      if (!options.resolveMask) continue;
+
+      const fieldName = key as unknown as Path<TFieldValues>;
+      const storedRaw = rawValuesRef.current[key] ?? '';
+      if (!storedRaw) continue;
+
+      const effectiveOptions = getEffectiveOptions(options, storedRaw);
+      const { value: canonicalRaw, displayValue } = processInput(storedRaw, effectiveOptions);
+      if (canonicalRaw === storedRaw) continue;
+
+      commitRaw(fieldName, canonicalRaw, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+
+      const input = fieldRefs.current[key];
+      if (input && input.value !== displayValue) {
+        input.value = displayValue;
+      }
+    }
+  }, [schema, getMaskOptions, getEffectiveOptions, commitRaw]);
 
   useLayoutEffect(() => {
-    for (const key in schema) {
-      const input = fieldRefs.current[key];
-      if (!input) continue;
+    // Imperative overwrites during composition drop compositionend on some browsers
+    // (dead keys like ^), leaving isComposing stuck and freezing the input.
+    if (isComposingRef.current) return;
 
+    for (const key in schema) {
       const config = schema[key];
       if (!config) continue;
 
       const fieldName = key as unknown as Path<TFieldValues>;
+      const options = getMaskOptions(config);
       const formValue = getValues(fieldName);
+      const formStr = formValue !== undefined && formValue !== null ? String(formValue) : '';
 
-      if (formValue !== undefined && formValue !== null) {
-        const stringValue = String(formValue);
-        const options = getMaskOptions(config);
-        const effectiveOptions = getEffectiveOptions(options, stringValue);
-        
-        let displayValue = '';
-        if (effectiveOptions.currency) {
-            displayValue = formatCurrency(stringValue, effectiveOptions.currency);
-        } else {
-            const result = processInput(stringValue, effectiveOptions);
-            displayValue = result.displayValue;
-        }
+      if (rawValuesRef.current[key] === undefined) {
+        rawValuesRef.current[key] = toCanonicalRaw(
+          formStr,
+          getEffectiveOptions(options, formStr),
+        );
+      }
 
-        if (input.value !== displayValue) {
-          input.value = displayValue;
-        }
+      const rawValue = rawValuesRef.current[key] ?? '';
+      const effectiveOptions = getEffectiveOptions(options, rawValue);
+      // Re-apply current mask so dependent length changes (Amex CVV 4 → 3) truncate raw too.
+      const { value: canonicalRaw, displayValue } = processInput(rawValue, effectiveOptions);
+
+      if (canonicalRaw !== rawValue) {
+        commitRaw(fieldName, canonicalRaw, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      }
+
+      const input = fieldRefs.current[key];
+      if (input && input.value !== displayValue) {
+        input.value = displayValue;
       }
     }
   });
@@ -98,12 +192,12 @@ export function useViraMask<
     selectionStart: number | null,
     inputElement: HTMLInputElement
   ) => {
+    const key = String(name);
     let previousDisplayValue = '';
-    const currentRawValue = getValues(name);
-    if (currentRawValue !== undefined && currentRawValue !== null) {
+    const currentRawValue = rawValuesRef.current[key] ?? getValues(name);
+    if (currentRawValue !== undefined && currentRawValue !== null && currentRawValue !== '') {
        const oldEffectiveOptions = getEffectiveOptions(options, String(currentRawValue));
-       const { displayValue } = processInput(String(currentRawValue), oldEffectiveOptions);
-       previousDisplayValue = displayValue;
+       previousDisplayValue = toDisplayValue(String(currentRawValue), oldEffectiveOptions);
     }
 
     const effectiveOptions = getEffectiveOptions(options, value);
@@ -119,23 +213,35 @@ export function useViraMask<
     }
 
     inputElement.value = finalDisplayValue;
-    
-    setValue(name, finalRawValue as PathValue<TFieldValues, Path<TFieldValues>>, { 
-        shouldValidate: true, 
-        shouldDirty: true, 
-        shouldTouch: true 
+    commitRaw(name, finalRawValue, {
+      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
     });
+
+    // Card type change must truncate CVV raw immediately (not only display).
+    syncDependentRaws(key);
 
     const supportsSelection = /text|search|url|tel|password/i.test(inputElement.type);
     if (supportsSelection) {
-       cursorRequestRef.current = { name, position: cursorPosition };
+       cursorRequestRef.current = { name: key, position: cursorPosition };
     }
-  }, [setValue, getValues, getEffectiveOptions]);
+  }, [commitRaw, getValues, getEffectiveOptions, syncDependentRaws]);
 
   const createChangeHandler = useCallback(
     (name: Path<TFieldValues>, options: MaskOptions) => {
       return (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (isComposingRef.current) return;
+        const nativeEvent = e.nativeEvent as InputEvent;
+        const browserComposing = Boolean(nativeEvent.isComposing);
+
+        // Dead-key layouts (e.g. ^) can fire compositionstart without compositionend.
+        // Trust the browser: if it reports not composing, clear a stuck flag and continue.
+        if (isComposingRef.current && !browserComposing) {
+          isComposingRef.current = false;
+        }
+
+        if (isComposingRef.current || browserComposing) return;
+
         updateField(name, e.target.value, options, e.target.selectionStart, e.target);
       };
     },
@@ -197,16 +303,18 @@ export function useViraMask<
         validate: {
           maskFormat: (value) => {
             if (!options.validate) return true;
-            if (!value) return true;
+            // Validate against canonical raw, never masked display.
+            const raw = rawValuesRef.current[key] ?? toCanonicalRaw(String(value ?? ''), options);
+            if (!raw) return true;
 
             let isValid = true;
             if (typeof options.validator === 'function') {
-              isValid = options.validator(value);
+              isValid = options.validator(raw);
             } else if (typeof options.validator === 'string' && VALIDATORS[options.validator]) {
               if (options.validator === 'date') {
-                isValid = VALIDATORS.date(value, options.dateFormat);
+                isValid = VALIDATORS.date(raw, options.dateFormat);
               } else {
-                isValid = VALIDATORS[options.validator](value);
+                isValid = VALIDATORS[options.validator](raw);
               }
             }
 
@@ -218,16 +326,16 @@ export function useViraMask<
       const { onChange: _onChange, ...cleanRest } = rest;
 
       const formValue = getValues(fieldName);
-      const stringValue = formValue !== undefined && formValue !== null ? String(formValue) : '';
-      const effectiveOptions = getEffectiveOptions(options, stringValue);
-      
-      let displayValue = '';
-      if (effectiveOptions.currency) {
-          displayValue = formatCurrency(stringValue, effectiveOptions.currency);
-      } else {
-          const result = processInput(stringValue, effectiveOptions);
-          displayValue = result.displayValue;
+      const formStr = formValue !== undefined && formValue !== null ? String(formValue) : '';
+      const baseOptions = getEffectiveOptions(options, formStr);
+
+      if (rawValuesRef.current[key] === undefined && formStr) {
+        rawValuesRef.current[key] = toCanonicalRaw(formStr, baseOptions);
       }
+
+      const storedRaw = rawValuesRef.current[key] ?? '';
+      const effectiveOptions = getEffectiveOptions(options, storedRaw);
+      const { value: rawValue, displayValue } = processInput(storedRaw, effectiveOptions);
 
       const combinedRef = mergeRefs(rhfRef, (el: HTMLInputElement | null) => {
         fieldRefs.current[key] = el;
@@ -240,11 +348,10 @@ export function useViraMask<
 
       const handleFocus = (_e: React.FocusEvent<HTMLInputElement>) => {
           setFocusedField(key);
-          const formValue = getValues(fieldName);
-          if (formValue !== undefined && formValue !== null) {
-             const stringValue = String(formValue);
-             const effectiveOptions = getEffectiveOptions(options, stringValue);
-             const { cardType } = processInput(stringValue, effectiveOptions);
+          const raw = rawValuesRef.current[key] ?? '';
+          if (raw) {
+             const effective = getEffectiveOptions(options, raw);
+             const { cardType } = processInput(raw, effective);
              
              if (cardType && options.onCardTypeChange) {
                 options.onCardTypeChange(cardType);
@@ -253,8 +360,19 @@ export function useViraMask<
       };
 
       const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-          setFocusedField(null);
+          // Focus loss mid-composition often skips compositionend; never leave the field stuck.
+          isComposingRef.current = false;
+          const raw = rawValuesRef.current[key] ?? '';
+          const effective = getEffectiveOptions(options, raw);
+          const { value: canonicalRaw } = processInput(raw, effective);
+          // RHF register may sync masked DOM into form state on blur — re-assert raw after.
           rhfOnBlur(e);
+          commitRaw(fieldName, canonicalRaw, {
+            shouldValidate: true,
+            shouldDirty: true,
+            shouldTouch: true,
+          });
+          setFocusedField(null);
       };
 
       const fieldObj: MaskField = {
@@ -268,13 +386,13 @@ export function useViraMask<
         onBlur: handleBlur,
         onFocus: handleFocus,
         type: options.type || 'text',
-        inputMode: options.inputMode || (options.currency ? 'decimal' : (options.mask ? 'tel' : 'text')),
+        inputMode: options.inputMode || (options.currency ? 'decimal' : getDefaultInputMode(options.mask)),
         autoComplete: options.autoComplete ?? (options.type === 'email' ? 'email' : options.type === 'password' ? 'current-password' : 'off'),
         'aria-invalid': !!errors[key],
         'aria-describedby': options.mask ? `${name}-description` : undefined,
         title: options.mask,
         ref: combinedRef,
-        rawValue: stringValue,
+        rawValue,
       };
 
       fields[key as keyof TSchema] = fieldObj as any;
@@ -290,8 +408,10 @@ export function useViraMask<
     createCompositionStartHandler, 
     createCompositionEndHandler, 
     getMaskOptions, 
-    getEffectiveOptions, 
-    focusedField, 
+    getEffectiveOptions,
+    commitRaw,
+    focusedField,
+    rawEpoch,
     errors
   ]);
 
