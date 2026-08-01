@@ -91,6 +91,38 @@ describe("useViraMask", () => {
     expect(result.current.form.getValues("phone")).toBe("555");
   });
 
+  it("should apply onChange when nativeEvent is omitted (synthetic callers)", async () => {
+    const { result } = renderHook(() => {
+      const form = useForm({
+        defaultValues: {
+          phone: "",
+        },
+      });
+
+      const fields = useViraMask({
+        form,
+        schema: {
+          phone: PRESETS.phone,
+        },
+      });
+
+      return { form, fields };
+    });
+
+    const input = document.createElement("input");
+    input.value = "555";
+    input.selectionStart = 3;
+
+    await act(async () => {
+      result.current.fields.phone.onChange({
+        target: input,
+        currentTarget: input,
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(result.current.form.getValues("phone")).toBe("555");
+  });
+
   it("should ignore onChange while browser reports active composition", async () => {
     const { result } = renderHook(() => {
       const form = useForm({

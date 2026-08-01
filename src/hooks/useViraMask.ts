@@ -231,8 +231,9 @@ export function useViraMask<
   const createChangeHandler = useCallback(
     (name: Path<TFieldValues>, options: MaskOptions) => {
       return (e: React.ChangeEvent<HTMLInputElement>) => {
-        const nativeEvent = e.nativeEvent as InputEvent;
-        const browserComposing = Boolean(nativeEvent.isComposing);
+        const nativeEvent = e.nativeEvent as InputEvent | undefined;
+        // Optional: synthetic callers (tests, demos) may omit nativeEvent.
+        const browserComposing = Boolean(nativeEvent?.isComposing);
 
         // Dead-key layouts (e.g. ^) can fire compositionstart without compositionend.
         // Trust the browser: if it reports not composing, clear a stuck flag and continue.
