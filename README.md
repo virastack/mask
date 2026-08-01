@@ -13,7 +13,6 @@
 [![ViraStack Mask](https://img.shields.io/badge/ViraStack-Mask-%23615fff)](https://virastack.com/mask/)
 [![npm version](https://img.shields.io/npm/v/@virastack/mask)](https://www.npmjs.com/package/@virastack/mask)
 [![npm downloads](https://img.shields.io/npm/dt/@virastack/mask)](https://www.npmjs.com/package/@virastack/mask)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/@virastack/mask)](https://bundlephobia.com/package/@virastack/mask)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/virastack/mask/blob/main/LICENSE)
 [![@virastack](https://img.shields.io/badge/-%40virastack-black?logo=x&logoColor=white)](https://x.com/virastack)
 
