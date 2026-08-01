@@ -1,11 +1,5 @@
 # Changelog
 
-## [v1.1.2] - 2026-08-01
-
-### Bug Fixes
-
-- **Synthetic onChange**: `onChange` no longer throws when `nativeEvent` is missing (tests, demos, programmatic callers). Treats absent `nativeEvent` as not composing.
-
 ## [v1.1.1] - 2026-08-01
 
 ### Documentation
